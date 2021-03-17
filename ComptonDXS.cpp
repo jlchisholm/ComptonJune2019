@@ -203,7 +203,8 @@ double GetScalingFactor(int ke, TFile *ftFile, TFile *etFile)
 
 
 //int GetCounts(int ke, int th, TH3* hFull_ME_3D_conv, TH3* hEmpty_ME_3D_conv, double scale)
-int GetCounts(int ke)
+//int GetCounts(int ke)
+int GetCounts(int ke, int th)
 {
 
     // --------------------------- Open Files --------------------------- //
@@ -233,11 +234,18 @@ int GetCounts(int ke)
     // Get scaling factor
     double scale = GetScalingFactor(ke, ftFile, etFile);
 
+    int thbin = hFull_ME_3D_conv->GetYaxis()->FindBin(th);
+    int kebin_l = hFull_ME_3D_conv->GetZaxis()->FindBin(225);
+    int kebin_h = hFull_ME_3D_conv->GetZaxis()->FindBin(235);
+
+    cout << kebin_l << endl;
+    cout << kebin_h << endl;
 
 
     // Project 3D histograms at input Tagger channel
-    TH1D *hFull_ME_projx = hFull_ME_3D_conv->ProjectionX(Form("hME_projx_%dMeV",ke));  // just all of theta and ke for a moment now
-    TH1D *hEmpty_ME_projx = hEmpty_ME_3D_conv->ProjectionX(Form("hEmpty_ME_projx_%dMeV",ke));
+    TH1D *hFull_ME_projx = hFull_ME_3D_conv->ProjectionX(Form("hME_projx_%dMeV",ke),thbin,thbin+15,kebin_l,kebin_h);  // just all of theta and ke for a moment now
+    //TH1D *hFull_ME_projx = hFull_ME_3D_conv->ProjectionZ(Form("hME_projx_%dMeV",ke));
+    TH1D *hEmpty_ME_projx = hEmpty_ME_3D_conv->ProjectionX(Form("hEmpty_ME_projx_%dMeV",ke),thbin,thbin+15,kebin_l,kebin_h);
 
     // Subtract empty from full with scaling
     TH1D *hSubtracted = (TH1D*) hFull_ME_projx->Clone(Form("hSubtracted_%dMeV",ke));
@@ -250,19 +258,21 @@ int GetCounts(int ke)
 
     // Create a canvas and draw the differential cross sections
     TCanvas *ctemp = new TCanvas("ctemp","",200,10,750,750);
-    ctemp->cd();
+    ctemp->Divide(2,1);
+    ctemp->cd(1);
     hFull_ME_projx->SetLineColor(1);
-    hFull_ME_projx->Rebin(4);
-    hFull_ME_projx->Draw("SAME HIST");
+    hFull_ME_projx->Rebin(5);
+    hFull_ME_projx->Draw("SAME");
     hEmpty_ME_projx->SetLineColor(2);
-    hEmpty_ME_projx->Rebin(4);
-    hEmpty_ME_projx->Draw("SAME HIST");
+    hEmpty_ME_projx->Rebin(5);
+    hEmpty_ME_projx->Draw("SAME"); //HIST
     hEmpty_ME_scaled->SetLineColor(3);
-    hEmpty_ME_scaled->Rebin(4);
-    hEmpty_ME_scaled->Draw("SAME HIST");
+    hEmpty_ME_scaled->Rebin(5);
+    hEmpty_ME_scaled->Draw("SAME");
+    ctemp->cd(2);
     hSubtracted->SetLineColor(4);
-    hSubtracted->Rebin(4);
-    hSubtracted->Draw("SAME HIST");
+    hSubtracted->Rebin(5);
+    hSubtracted->Draw("SAME");
 
     // Create a legend for the histogram
     TLegend *legend = new TLegend(0.1,0.75,0.3,0.9);
@@ -277,6 +287,10 @@ int GetCounts(int ke)
 
     return counts;
 }
+
+
+
+
 
 
 
