@@ -159,7 +159,7 @@ TH3* Tagg_Chan_To_Ener(TString sFile, TH3 *hChan, TString sAxis="X")
 TH1D* GetTotDetEff(int ke)
 {
     // Open file
-    TFile *edetFile = TFile::Open(Form("DetEff/DetEff_%d.root",ke));
+    TFile *edetFile = TFile::Open(Form("DetEff/DetEff_%d_FinalB.root",ke));
     if(!edetFile->IsOpen())
     {
             cout << "Error: detection efficiency file could not be opened.";
@@ -194,14 +194,20 @@ double GetScalingFactor(int ke, TFile *ftFile, TFile *etFile)
     TH1D *hRatio_conv = TaggChanToEnergy("Tagger_Conversions_by_k_2019_06.txt",hRatio);
 
     // Get factor for this energy
-    double factor = hRatio_conv->GetBinContent(ke);
+    double factor = hRatio_conv->GetBinContent(hRatio_conv->GetXaxis()->FindBin(ke));
 
     return factor;
 }
 
 
 
+// ------------------------ COUNTS (YIELD) AT ENERGY AND ANGLE ----------------------------- //
 
+
+// A function that subtracts the scaled empty target data from the full target data,
+// fits the peak, integrates the coherent peak, and returns a yield count
+// Input: photon energy you want to look at, angle you want, converted 3D full and empty target histograms,
+// scaling factor for this energy, output: counts in elastic peak
 //int GetCounts(int ke, int th, TH3* hFull_ME_3D_conv, TH3* hEmpty_ME_3D_conv, double scale)
 //int GetCounts(int ke)
 int GetCounts(int ke, int th)
@@ -210,16 +216,16 @@ int GetCounts(int ke, int th)
     // --------------------------- Open Files --------------------------- //
 
     // Full target file
-    TFile *ftFile = TFile::Open("Full_Target_Compton_mikes.root");
+    TFile *ftFile = TFile::Open("He4Compton_Full_FinalB.root");
     if(!ftFile->IsOpen()){cout << "Error: full target file could not be opened."; exit(-1);}
 
     // Empty target file
-    TFile *etFile = TFile::Open("Empty_Target_Compton_mikes.root");
+    TFile *etFile = TFile::Open("He4Compton_Empty_FinalB.root");
     if(!etFile->IsOpen()){cout << "Error: empty target file could not be opened.";exit(-1);}
 
     // Tagging Efficiency File
-    TFile *tagFile = TFile::Open("~/TaggingEfficienciesJune2019/TaggEff-MOELLER-20.root");
-    if(!tagFile->IsOpen()){cout << "Error: tagging efficiency file could not be opened.";exit(-1);}
+//    TFile *tagFile = TFile::Open("~/TaggingEfficienciesJune2019/TaggEff-MOELLER-20.root");
+//    if(!tagFile->IsOpen()){cout << "Error: tagging efficiency file could not be opened.";exit(-1);}
 
 
     // Get 3D, 1 particle event ME Histograms
@@ -234,18 +240,21 @@ int GetCounts(int ke, int th)
     // Get scaling factor
     double scale = GetScalingFactor(ke, ftFile, etFile);
 
-    int thbin = hFull_ME_3D_conv->GetYaxis()->FindBin(th);
-    int kebin_l = hFull_ME_3D_conv->GetZaxis()->FindBin(225);
-    int kebin_h = hFull_ME_3D_conv->GetZaxis()->FindBin(235);
+    int thbin_l = hFull_ME_3D_conv->GetYaxis()->FindBin(th);
+    int thbin_h = hFull_ME_3D_conv->GetYaxis()->FindBin(th+15);
+    int kebin_l = hFull_ME_3D_conv->GetZaxis()->FindBin(ke-5);
+    int kebin_h = hFull_ME_3D_conv->GetZaxis()->FindBin(ke+5);
+    int NbinsY = hFull_ME_3D_conv->GetYaxis()->GetNbins();
 
-    cout << kebin_l << endl;
-    cout << kebin_h << endl;
+//    cout << kebin_l << endl;
+//    cout << kebin_h << endl;
 
 
     // Project 3D histograms at input Tagger channel
-    TH1D *hFull_ME_projx = hFull_ME_3D_conv->ProjectionX(Form("hME_projx_%dMeV",ke),thbin,thbin+15,kebin_l,kebin_h);  // just all of theta and ke for a moment now
-    //TH1D *hFull_ME_projx = hFull_ME_3D_conv->ProjectionZ(Form("hME_projx_%dMeV",ke));
-    TH1D *hEmpty_ME_projx = hEmpty_ME_3D_conv->ProjectionX(Form("hEmpty_ME_projx_%dMeV",ke),thbin,thbin+15,kebin_l,kebin_h);
+    //TH1D *hFull_ME_projx = hFull_ME_3D_conv->ProjectionX(Form("hFull_ME_projx_%dMeV",ke),thbin_l,thbin_l,kebin_l,kebin_h);  // just all of theta and ke for a moment now
+    TH1D *hFull_ME_projx = hFull_ME_3D_conv->ProjectionX(Form("hFull_ME_projx_%dMeV",ke));
+    //TH1D *hEmpty_ME_projx = hEmpty_ME_3D_conv->ProjectionX(Form("hEmpty_ME_projx_%dMeV",ke),thbin_l,thbin_l,kebin_l,kebin_h);
+    TH1D *hEmpty_ME_projx = hEmpty_ME_3D_conv->ProjectionX(Form("hEmpty_ME_projx_%dMeV",ke));
 
     // Subtract empty from full with scaling
     TH1D *hSubtracted = (TH1D*) hFull_ME_projx->Clone(Form("hSubtracted_%dMeV",ke));
@@ -257,22 +266,31 @@ int GetCounts(int ke, int th)
 
 
     // Create a canvas and draw the differential cross sections
-    TCanvas *ctemp = new TCanvas("ctemp","",200,10,750,750);
-    ctemp->Divide(2,1);
-    ctemp->cd(1);
-    hFull_ME_projx->SetLineColor(1);
-    hFull_ME_projx->Rebin(5);
-    hFull_ME_projx->Draw("SAME");
-    hEmpty_ME_projx->SetLineColor(2);
-    hEmpty_ME_projx->Rebin(5);
-    hEmpty_ME_projx->Draw("SAME"); //HIST
-    hEmpty_ME_scaled->SetLineColor(3);
-    hEmpty_ME_scaled->Rebin(5);
-    hEmpty_ME_scaled->Draw("SAME");
-    ctemp->cd(2);
-    hSubtracted->SetLineColor(4);
-    hSubtracted->Rebin(5);
-    hSubtracted->Draw("SAME");
+    TCanvas *cAH = new TCanvas("cAH","",200,10,750,750);
+    //cAH->Divide(2,1);
+    cAH->cd();
+    int rebin = 4;
+    hFull_ME_projx->GetYaxis()->SetRangeUser(0,30000);
+    hFull_ME_projx->GetYaxis()->SetTitle("#");
+    hFull_ME_projx->SetTitle("#gamma Missing Energy in CM Frame");
+    hFull_ME_projx->SetLineColor(kAzure-1);
+    hFull_ME_projx->SetFillColor(kAzure-2);
+    hFull_ME_projx->Rebin(rebin);
+    hFull_ME_projx->Draw("HIST");
+    hEmpty_ME_scaled->SetLineColor(kCyan+1);
+    hEmpty_ME_scaled->SetFillColor(kCyan);
+    hEmpty_ME_scaled->Rebin(rebin);
+    hEmpty_ME_scaled->Draw("SAME HIST");
+    hEmpty_ME_projx->SetLineColor(kMagenta);
+    hEmpty_ME_projx->SetFillColor(kMagenta-9);
+    hEmpty_ME_projx->Rebin(rebin);
+    hEmpty_ME_projx->Draw("SAME HIST"); //HIST
+    //cAH->cd(2);
+    hSubtracted->SetLineColor(kOrange-3);
+    hSubtracted->SetFillColor(kOrange);
+    hSubtracted->Rebin(rebin);
+    hSubtracted->Draw("SAME HIST");
+    gPad->RedrawAxis();
 
     // Create a legend for the histogram
     TLegend *legend = new TLegend(0.1,0.75,0.3,0.9);
